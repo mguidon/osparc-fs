@@ -5,9 +5,9 @@ do
     file=sample_${mb}.txt
     dd if=/dev/urandom of=${file} bs=1M count=${mb}
     echo "==================================== UPLOAD goofys ===================================="
-    time cp ${file} /opt/goofys/bucket/
+    time cp ${file} /opt/s3fs/bucket/
     echo "=================================== DONWLOAD goofys ===================================="
-    time cp /opt/goofys/bucket/${file} .
+    time cp /opt/s3fs/bucket/${file} .
 
     echo "==================================== UPLOAD mc ===================================="
     time mc cp ${file} s3/osparc-data/
