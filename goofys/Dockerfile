@@ -5,6 +5,7 @@ ENV DEBIAN_FRONTEND noninteractive
 ENV VERSION 1.89
 
 RUN apt-get update && apt-get install -y \
+    bc \
     wget \
     && rm -rf /var/lib/apt/lists/*
 

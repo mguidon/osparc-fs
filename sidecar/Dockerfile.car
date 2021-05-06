@@ -1,0 +1,30 @@
+FROM ubuntu:18.04
+
+
+ENV VERSION 1.89
+
+RUN apt-get update && apt-get install -y \
+    gosu \
+    python3-dev \
+    python3-pip \
+    python3-venv
+
+
+# supermash-user uid=8004(scu) gid=8004(scu) groups=8004(scu)
+RUN addgroup --gid 8004 scu
+RUN useradd --uid 8004 --gid 8004 --shell /bin/bash --home /home/scu scu
+
+WORKDIR /home/scu
+
+ENV INPUTS_FOLDER=/home/scu/work/inputs
+ENV OUTPUTS_FOLDER=/home/scu/work/outputs
+
+RUN mkdir -p ${INPUTS_FOLDER} && \
+    mkdir -p ${OUTPUTS_FOLDER}/output_1
+
+COPY entrypoint.car.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+COPY boot.car.sh boot.sh
+
+ENTRYPOINT [ "/bin/bash", "entrypoint.sh" ]
+CMD ["/bin/bash", "boot.sh"]

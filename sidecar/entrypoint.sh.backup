@@ -1,0 +1,91 @@
+#!/bin/sh
+#
+
+echo "$INFO" "Starting boot ... "$@" " 
+
+export AWS_S3_MOUNT=/s3fs-mnt
+export AWS_S3_CACHE=/s3fs-cache
+
+AWS_S3_AUTHFILE=/etc/passwd-s3fs
+echo "${AWS_S3_ACCESS_KEY_ID}:${AWS_S3_SECRET_ACCESS_KEY}" > ${AWS_S3_AUTHFILE}
+
+chmod 600 ${AWS_S3_AUTHFILE}
+
+mkdir -p $AWS_S3_MOUNT
+
+
+DEVEL_MOUNT=/devel
+
+stat $DEVEL_MOUNT > /dev/null 2>&1 || \
+    (echo "$ERROR" ": You must mount '$DEVEL_MOUNT' to deduce user and group ids" && exit 1) # FIXME: exit does not stop script
+
+USERID=$(stat -c %u $DEVEL_MOUNT)
+GROUPID=$(stat -c %g $DEVEL_MOUNT)
+GROUPNAME=$(getent group "${GROUPID}" | cut -d: -f1)
+
+
+echo "DETECTED uid:gid:groupname $USERID:$GROUPID:$GROUPNAME"
+if [ "$USERID" -eq 0 ]
+then
+    addgroup scu root
+else
+    # take host's credentials in host_group
+    if [ -z "$GROUPNAME" ]
+    then
+        GROUPNAME=host_group
+        echo "addgroup --gid "$GROUPID" $GROUPNAME"
+        addgroup --gid "$GROUPID" $GROUPNAME
+    else
+        addgroup scu $GROUPNAME
+    fi
+
+    deluser scu > /dev/null 2>&1
+    echo "adduser --uid $USERID --ingroup $GROUPNAME --gecos scu"
+    useradd -G $GROUPNAME scu
+
+    echo "added user scu to $GROUPNAME"
+fi
+
+chown -R $USERID:$GROUPID /home/scu
+chown -R $USERID:$GROUPID /s3fs-testing
+chown -R $USERID:$GROUPID /s3fs-mnt
+
+s3fs -o passwd_file=${AWS_S3_AUTHFILE} \
+    -o use_cache=${AWS_S3_CACHE} \
+    -o url=${AWS_S3_URL} \
+    -o use_path_request_style \
+    -o dbglevel=info \
+    -o uid=$USERID \
+    -o gid=$GROUPID \
+    -o allow_other \
+    -o nonempty \
+    ${AWS_S3_BUCKET} ${AWS_S3_MOUNT}
+
+ls -l "${AWS_S3_MOUNT}"
+
+
+mounted=$(mount | grep fuse.s3fs | grep "${AWS_S3_MOUNT}")
+if [ -n "${mounted}" ]; then
+    echo "Mounted bucket ${AWS_S3_BUCKET} onto ${AWS_S3_MOUNT}"
+else
+    echo "Mount failure"
+fi
+
+DOCKER_MOUNT=/var/run/docker.sock
+if stat $DOCKER_MOUNT > /dev/null 2>&1
+then
+    echo "$INFO detected docker socket is mounted, adding user to group..."
+    GROUPID=$(stat --format=%g $DOCKER_MOUNT)
+    GROUPNAME=scdocker
+
+    if ! addgroup --gid "$GROUPID" $GROUPNAME > /dev/null 2>&1
+    then
+        echo "$WARNING docker group with $GROUPID already exists, getting group name..."
+        # if group already exists in container, then reuse name
+        GROUPNAME=$(getent group "${GROUPID}" | cut --delimiter=: --fields=1)
+        echo "$WARNING docker group with $GROUPID has name $GROUPNAME"
+    fi
+    adduser scu $GROUPNAME
+fi
+
+exec gosu scu "$@"
