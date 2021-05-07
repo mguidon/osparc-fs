@@ -31,5 +31,6 @@ COPY entrypoint.sh /usr/local/bin/
 WORKDIR /opt/s3fs
 
 COPY benchmark.sh .
+COPY benchmark2.sh .
 
 ENTRYPOINT [ "/bin/bash", "entrypoint.sh" ]
